@@ -18,7 +18,8 @@ namespace GHelper.Helpers
                 "ASUSSwitch",
                 "ASUSSystemAnalysis",
                 "ASUSSystemDiagnosis",
-                "AsusCertService"
+                "AsusCertService",
+                "ArmouryCrateSEService"
         };
 
         public static void SetChargeLimit(int newValue)
