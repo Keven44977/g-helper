@@ -320,6 +320,8 @@ namespace GHelper
             checkGPUFix.Checked = AppConfig.IsGPUFix();
             checkGPUFix.CheckedChanged += CheckGPUFix_CheckedChanged;
 
+            toolTip.SetToolTip(checkAutoToggleClamshellMode, "Disable sleep on lid close when plugged in and external monitor is connected");
+
             InitVariBright();
             InitServices();
             InitHibernate();
@@ -401,7 +403,7 @@ namespace GHelper
         {
             buttonServices.Enabled = false;
 
-            if (OptimizationService.IsRunning())
+            if (OptimizationService.GetRunningCount() > 0)
             {
                 labelServices.Text = Properties.Strings.StoppingServices + " ...";
                 Task.Run(() =>

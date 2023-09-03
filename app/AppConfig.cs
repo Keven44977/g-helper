@@ -284,6 +284,11 @@ public static class AppConfig
         return ContainsModel("TUF");
     }
 
+    public static bool IsVivobook()
+    {
+        return ContainsModel("Vivobook");
+    }
+
     // Devices with bugged bios command to change brightness
     public static bool SwappedBrightness()
     {
@@ -335,7 +340,7 @@ public static class AppConfig
 
     public static bool NoAutoUltimate()
     {
-        return ContainsModel("G614") || ContainsModel("GU604") || ContainsModel("FX507");
+        return ContainsModel("G614") || ContainsModel("GU604") || ContainsModel("FX507") || ContainsModel("G513");
     }
 
 

@@ -67,6 +67,9 @@ public class AsusACPI
     public const uint ScreenOverdrive = 0x00050019;
     public const uint ScreenMiniled = 0x0005001E;
 
+    public const uint DevsCPUFan = 0x00110022;
+    public const uint DevsGPUFan = 0x00110023;
+
     public const uint DevsCPUFanCurve = 0x00110024;
     public const uint DevsGPUFanCurve = 0x00110025;
     public const uint DevsMidFanCurve = 0x00110032;
@@ -89,6 +92,8 @@ public class AsusACPI
     public const int TUF_KB_BRIGHTNESS = 0x00050021;
     public const int TUF_KB = 0x00100056;
     public const int TUF_KB_STATE = 0x00100057;
+
+    public const int MICMUTE_LED = 0x00040017;
 
     public const int TabletState = 0x00060077;
     public const int FnLock = 0x00100023;
@@ -334,6 +339,25 @@ public class AsusACPI
             return DeviceSet(GPUEco, eco, "GPUEco");
 
         return -1;
+    }
+
+    public int SetFanRange(AsusFan device, byte[] curve)
+    {
+        byte min = (byte)(curve[8] * 255 / 100);
+        byte max = (byte)(curve[15] * 255 / 100);
+        byte[] range = { min, max};
+
+        int result;
+        switch (device)
+        {
+            case AsusFan.GPU:
+                result = DeviceSet(DevsGPUFan, range, "FanRangeGPU");
+                break;
+            default:
+                result = DeviceSet(DevsCPUFan, range, "FanRangeCPU");
+                break;
+        }
+        return result;
     }
 
 
