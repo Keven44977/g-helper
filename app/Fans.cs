@@ -1,4 +1,5 @@
-﻿using GHelper.Gpu.NVidia;
+﻿using GHelper.Fan;
+using GHelper.Gpu.NVidia;
 using GHelper.Mode;
 using GHelper.UI;
 using Ryzen;
@@ -18,8 +19,6 @@ namespace GHelper
         Series seriesMid;
         Series seriesXGM;
 
-        static int MinRPM, MaxRPM;
-
         static bool gpuVisible = true;
         static bool fanRpm = true;
 
@@ -28,10 +27,14 @@ namespace GHelper
         NvidiaGpuControl? nvControl = null;
         ModeControl modeControl = Program.modeControl;
 
+        FanSensorControl fanSensorControl;
+
         public Fans()
         {
 
             InitializeComponent();
+
+            fanSensorControl = new FanSensorControl(this);
 
             //float dpi = ControlHelper.GetDpiScale(this).Value;
             //comboModes.Size = new Size(comboModes.Width, (int)dpi * 18);
@@ -57,10 +60,10 @@ namespace GHelper
             buttonApplyAdvanced.Text = Properties.Strings.Apply;
             checkApplyUV.Text = Properties.Strings.AutoApply;
 
+            buttonCalibrate.Text = Properties.Strings.Calibrate;
+
             InitTheme(true);
 
-            MinRPM = 18;
-            MaxRPM = HardwareControl.fanMax;
             labelTip.Visible = false;
             labelTip.BackColor = Color.Transparent;
 
@@ -78,15 +81,19 @@ namespace GHelper
 
             chartCPU.MouseMove += (sender, e) => ChartCPU_MouseMove(sender, e, AsusFan.CPU);
             chartCPU.MouseUp += ChartCPU_MouseUp;
+            chartCPU.MouseLeave += ChartCPU_MouseLeave;
 
             chartGPU.MouseMove += (sender, e) => ChartCPU_MouseMove(sender, e, AsusFan.GPU);
             chartGPU.MouseUp += ChartCPU_MouseUp;
+            chartGPU.MouseLeave += ChartCPU_MouseLeave;
 
             chartMid.MouseMove += (sender, e) => ChartCPU_MouseMove(sender, e, AsusFan.Mid);
             chartMid.MouseUp += ChartCPU_MouseUp;
+            chartMid.MouseLeave += ChartCPU_MouseLeave;
 
             chartXGM.MouseMove += (sender, e) => ChartCPU_MouseMove(sender, e, AsusFan.XGM);
             chartXGM.MouseUp += ChartCPU_MouseUp;
+            chartXGM.MouseLeave += ChartCPU_MouseLeave;
 
             chartCPU.MouseClick += ChartCPU_MouseClick;
             chartGPU.MouseClick += ChartCPU_MouseClick;
@@ -141,6 +148,7 @@ namespace GHelper
             trackGPUMemory.MouseUp += TrackGPU_MouseUp;
             trackGPUBoost.MouseUp += TrackGPU_MouseUp;
             trackGPUTemp.MouseUp += TrackGPU_MouseUp;
+
             trackGPUClockLimit.MouseUp += TrackGPU_MouseUp;
 
             //labelInfo.MaximumSize = new Size(280, 0);
@@ -195,10 +203,22 @@ namespace GHelper
 
             checkApplyUV.Click += CheckApplyUV_Click;
 
+            buttonCalibrate.Click += ButtonCalibrate_Click;
+
             ToggleNavigation(0);
+
+            if (Program.acpi.DeviceGet(AsusACPI.DevsCPUFanCurve) < 0) buttonCalibrate.Visible = false;
 
             FormClosed += Fans_FormClosed;
 
+        }
+
+
+
+        private void ButtonCalibrate_Click(object? sender, EventArgs e)
+        {
+            buttonCalibrate.Enabled = false;
+            fanSensorControl.StartCalibration();
         }
 
         private void ChartCPU_MouseClick(object? sender, MouseEventArgs e)
@@ -565,15 +585,15 @@ namespace GHelper
             VisualiseGPUSettings();
         }
 
-        static string ChartPercToRPM(int percentage, AsusFan device, string unit = "")
+        static string ChartYLabel(int percentage, AsusFan device, string unit = "")
         {
             if (percentage == 0) return "OFF";
 
-            int Max = MaxRPM;
-            if (device == AsusFan.XGM) Max = 72;
+            int Min = FanSensorControl.DEFAULT_FAN_MIN;
+            int Max = FanSensorControl.GetFanMax(device);
 
             if (fanRpm)
-                return (200 * Math.Round((float)(MinRPM * 100 + (Max - MinRPM) * percentage) / 200)).ToString() + unit;
+                return (200 * Math.Round((float)(Min * 100 + (Max - Min) * percentage) / 200)).ToString() + unit;
             else
                 return percentage + "%";
         }
@@ -583,12 +603,12 @@ namespace GHelper
 
             chart.ChartAreas[0].AxisY.CustomLabels.Clear();
 
-            for (int i = 0; i <= fansMax - 10; i += 10)
+            for (int i = 0; i <= fansMax; i += 10)
             {
-                chart.ChartAreas[0].AxisY.CustomLabels.Add(i - 2, i + 2, ChartPercToRPM(i, device));
+                chart.ChartAreas[0].AxisY.CustomLabels.Add(i - 2, i + 2, ChartYLabel(i, device));
             }
 
-            chart.ChartAreas[0].AxisY.CustomLabels.Add(fansMax - 2, fansMax + 2, Properties.Strings.RPM);
+            //chart.ChartAreas[0].AxisY.CustomLabels.Add(fansMax -2, fansMax + 2, Properties.Strings.RPM);
             chart.ChartAreas[0].AxisY.Interval = 10;
         }
 
@@ -596,20 +616,21 @@ namespace GHelper
         {
 
             string title = "";
+            string scale = ", RPM/°C";
 
             switch (device)
             {
                 case AsusFan.CPU:
-                    title = Properties.Strings.FanProfileCPU;
+                    title = Properties.Strings.FanProfileCPU + scale;
                     break;
                 case AsusFan.GPU:
-                    title = Properties.Strings.FanProfileGPU;
+                    title = Properties.Strings.FanProfileGPU + scale;
                     break;
                 case AsusFan.Mid:
-                    title = Properties.Strings.FanProfileMid;
+                    title = Properties.Strings.FanProfileMid + scale;
                     break;
                 case AsusFan.XGM:
-                    title = "XG Mobile";
+                    title = "XG Mobile" + scale;
                     break;
             }
 
@@ -715,16 +736,34 @@ namespace GHelper
 
         }
 
+        public void InitAxis()
+        {
+            if (this == null || this.Text == "") return;
+
+            Invoke(delegate
+            {
+                buttonCalibrate.Enabled = true;
+                SetAxis(chartCPU, AsusFan.CPU);
+                SetAxis(chartGPU, AsusFan.GPU);
+                if (chartMid.Visible) SetAxis(chartMid, AsusFan.Mid);
+            });
+        }
 
         public void LabelFansResult(string text)
         {
-            labelFansResult.Text = text;
-            labelFansResult.Visible = (text.Length > 0);
+            if (text.Length > 0) Logger.WriteLine(text);
+
+            if (this == null || this.Text == "") return;
+
+            Invoke(delegate
+            {
+                labelFansResult.Text = text;
+                labelFansResult.Visible = (text.Length > 0);
+            });
         }
 
         private void Fans_FormClosing(object? sender, FormClosingEventArgs e)
         {
-
             /*
             if (e.CloseReason == CloseReason.UserClosing)
             {
@@ -984,11 +1023,10 @@ namespace GHelper
 
         }
 
-        private void ChartCPU_MouseUp(object? sender, MouseEventArgs e)
+        private void Chart_Save()
         {
             curPoint = null;
             curIndex = -1;
-
             labelTip.Visible = false;
 
             SaveProfile(seriesCPU, AsusFan.CPU);
@@ -1001,8 +1039,19 @@ namespace GHelper
                 SaveProfile(seriesXGM, AsusFan.XGM);
 
             modeControl.AutoFans();
+        }
+
+        private void ChartCPU_MouseUp(object? sender, MouseEventArgs e)
+        {
+            Chart_Save();
+        }
 
 
+        private void ChartCPU_MouseLeave(object? sender, EventArgs e)
+        {
+            curPoint = null;
+            curIndex = -1;
+            labelTip.Visible = false;
         }
 
         private void ChartCPU_MouseMove(object? sender, MouseEventArgs e, AsusFan device)
@@ -1066,7 +1115,7 @@ namespace GHelper
                         tip = true;
                     }
 
-                    labelTip.Text = Math.Round(curPoint.XValue) + "C, " + ChartPercToRPM((int)curPoint.YValues[0], device, " " + Properties.Strings.RPM);
+                    labelTip.Text = Math.Round(curPoint.XValue) + "C, " + ChartYLabel((int)curPoint.YValues[0], device, " " + Properties.Strings.RPM);
                     labelTip.Top = e.Y + ((Control)sender).Top;
                     labelTip.Left = e.X - 50;
 

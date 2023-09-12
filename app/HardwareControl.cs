@@ -1,4 +1,5 @@
 ﻿using GHelper;
+using GHelper.Fan;
 using GHelper.Gpu;
 using GHelper.Gpu.NVidia;
 using GHelper.Gpu.AMD;
@@ -9,9 +10,6 @@ using System.Management;
 
 public static class HardwareControl
 {
-
-    const int DEFAULT_FAN_MAX = 58;
-    const int INADEQUATE_MAX = 80;
 
     public static IGpuControl? GpuControl;
 
@@ -34,65 +32,6 @@ public static class HardwareControl
     public static int? gpuUse;
 
     static long lastUpdate;
-
-    static int _fanMax = DEFAULT_FAN_MAX;
-    static bool _fanRpm = false;
-
-    public static int fanMax
-    {
-        get
-        {
-            return _fanMax;
-        }
-        set
-        {
-            AppConfig.Set("fan_max", value);
-            _fanMax = value;
-        }
-    }
-
-    public static bool fanRpm
-    {
-        get
-        {
-            return _fanRpm;
-        }
-        set
-        {
-            AppConfig.Set("fan_rpm", value ? 1 : 0);
-            _fanRpm = value;
-        }
-    }
-
-    static HardwareControl()
-    {
-        _fanMax = AppConfig.Get("fan_max");
-        if (_fanMax > INADEQUATE_MAX) _fanMax = -1; // skipping inadvequate settings
-
-        if (_fanMax < 0 && AppConfig.ContainsModel("401")) _fanMax = 72;
-        if (_fanMax < 0 && AppConfig.ContainsModel("503")) _fanMax = 68;
-        if (_fanMax < 0) _fanMax = DEFAULT_FAN_MAX;
-
-        _fanRpm = AppConfig.IsNotFalse("fan_rpm");
-
-    }
-
-    public static string FormatFan(int fan)
-    {
-        // fix for old models 
-        if (fan < 0)
-        {
-            fan += 65536;
-            if (fan <= 0 || fan > 100) return null; //nothing reasonable
-        }
-
-        if (fan > fanMax && fan <= INADEQUATE_MAX) fanMax = fan;
-
-        if (fanRpm)
-            return GHelper.Properties.Strings.FanSpeed + ": " + (fan * 100).ToString() + "RPM";
-        else
-            return GHelper.Properties.Strings.FanSpeed + ": " + Math.Min(Math.Round((float)fan / fanMax * 100), 100).ToString() + "%"; // relatively to 6000 rpm
-    }
 
     private static int GetGpuUse()
     {
@@ -246,9 +185,9 @@ public static class HardwareControl
         gpuTemp = -1;
         gpuUse = -1;
 
-        cpuFan = FormatFan(Program.acpi.DeviceGet(AsusACPI.CPU_Fan));
-        gpuFan = FormatFan(Program.acpi.DeviceGet(AsusACPI.GPU_Fan));
-        midFan = FormatFan(Program.acpi.DeviceGet(AsusACPI.Mid_Fan));
+        cpuFan = FanSensorControl.FormatFan(AsusFan.CPU, Program.acpi.GetFan(AsusFan.CPU));
+        gpuFan = FanSensorControl.FormatFan(AsusFan.GPU, Program.acpi.GetFan(AsusFan.GPU));
+        midFan = FanSensorControl.FormatFan(AsusFan.Mid, Program.acpi.GetFan(AsusFan.Mid));
 
         cpuTemp = GetCPUTemp();
 
@@ -328,6 +267,7 @@ public static class HardwareControl
             if (_gpuControl.IsValid)
             {
                 GpuControl = _gpuControl;
+                if (GpuControl.FullName.Contains("6850M")) AppConfig.Set("xgm_special", 1);
                 Logger.WriteLine(GpuControl.FullName);
                 return;
             }

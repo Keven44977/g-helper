@@ -507,6 +507,9 @@ namespace GHelper.Input
                     case 56:    // M4 / Rog button
                         KeyProcess("m4");
                         return;
+                    case 55:    // Arconym
+                        KeyProcess("m6");
+                        return;
                     case 181:    // FN + Numpad Enter
                         KeyProcess("fne");
                         return;
@@ -596,9 +599,7 @@ namespace GHelper.Input
         public static void SetBacklightAuto(bool init = false)
         {
             if (init) AsusUSB.Init();
-
-            //if (!OptimizationService.IsRunning()) 
-            AsusUSB.ApplyBrightness(GetBacklight(), "Auto");
+            AsusUSB.ApplyBrightness(GetBacklight(), "Auto", init);
         }
 
         public static void SetBacklight(int delta, bool force = false)
@@ -624,8 +625,11 @@ namespace GHelper.Input
                 AsusUSB.ApplyBrightness(backlight, "HotKey");
             }
 
-            string[] backlightNames = new string[] { "Off", "Low", "Mid", "Max" };
-            Program.toast.RunToast(backlightNames[backlight], delta > 0 ? ToastIcon.BacklightUp : ToastIcon.BacklightDown);
+            if (!OptimizationService.IsOSDRunning())
+            {
+                string[] backlightNames = new string[] { "Off", "Low", "Mid", "Max" };
+                Program.toast.RunToast(backlightNames[backlight], delta > 0 ? ToastIcon.BacklightUp : ToastIcon.BacklightDown);
+            }
 
         }
 
@@ -671,11 +675,14 @@ namespace GHelper.Input
 
                 //string executable = command.Split(' ')[0];
                 //string arguments = command.Substring(executable.Length).Trim();
+                ProcessStartInfo startInfo = new ProcessStartInfo("cmd", "/C " + command);
 
-                ProcessStartInfo startInfo = new ProcessStartInfo();
-                startInfo.UseShellExecute = true;
+                startInfo.RedirectStandardOutput = true;
+                startInfo.RedirectStandardError = true;
+                startInfo.UseShellExecute = false;
+                startInfo.CreateNoWindow = true;
+
                 startInfo.WorkingDirectory = Environment.CurrentDirectory;
-                startInfo.FileName = command;
                 //startInfo.Arguments = arguments;
                 Process proc = Process.Start(startInfo);
             }

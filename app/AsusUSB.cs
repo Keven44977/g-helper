@@ -333,12 +333,14 @@ namespace GHelper
         }
 
 
-        public static void ApplyBrightness(int brightness, string log = "Backlight")
+        public static void ApplyBrightness(int brightness, string log = "Backlight", bool delay = false)
         {
 
 
             Task.Run(async () =>
             {
+
+                if (delay) await Task.Delay(TimeSpan.FromSeconds(1));
 
                 if (isTuf) Program.acpi.TUFKeyboardBrightness(brightness);
 
@@ -641,11 +643,20 @@ namespace GHelper
 
         public static void InitXGM()
         {
-            SetXGM(LED_INIT1);
-            SetXGM(LED_INIT2);
-            SetXGM(LED_INIT3);
-            SetXGM(LED_INIT4);
-            SetXGM(LED_INIT5);
+            byte[] ASUS_INIT = Encoding.ASCII.GetBytes("^ASUS Tech.Inc.");
+
+            SetXGM(ASUS_INIT);
+
+            /*
+            SetXGM(new byte[] { 0x5e, 0xd0, 0x02 });
+            SetXGM(new byte[] { 0x5e, 0xd0, 0x03 });
+            SetXGM(ASUS_INIT);
+            SetXGM(new byte[] { 0x5e, 0xd1, 0x02 }); // reset fan
+            SetXGM(ASUS_INIT);
+            SetXGM(new byte[] { 0x5e, 0xce, 0x03 }); 
+            SetXGM(new byte[] { 0x5e, 0xd0, 0x04 });
+            SetXGM(new byte[] { 0x5e, 0xd0, 0x01 });
+            */
         }
 
         public static void ApplyXGMLight(bool status)
